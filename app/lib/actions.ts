@@ -21,12 +21,13 @@ const CreateInvoice = FormSchema.omit({ id: true, date: true });
 
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
 
-export interface CreateInvoiceState {
+export interface IInvoiceState {
   errors?: Partial<Record<'customerId' | 'amount' | 'status', string[]>>;
   message?: string | null;
+  formFields?: Partial<z.infer<typeof CreateInvoice>>;
 }
 
-export async function createInvoice(_: CreateInvoiceState, formData: FormData) {
+export async function createInvoice(_: IInvoiceState, formData: FormData) {
   const formDataValidataion = CreateInvoice.safeParse({
     customerId: formData.get('customerId'),
     amount: formData.get('amount'),
@@ -37,6 +38,13 @@ export async function createInvoice(_: CreateInvoiceState, formData: FormData) {
     return {
       message: 'Invalid Form Data',
       errors: formDataValidataion.error.flatten().fieldErrors,
+      formFields: {
+        customerId: formData.get('customerId')?.toString() || undefined,
+        amount: Number(formData.get('amount')?.toString()) || undefined,
+        status: (formData.get('status')?.toString() || undefined) as z.infer<
+          typeof CreateInvoice
+        >['status'],
+      },
     };
   }
 
@@ -59,13 +67,32 @@ export async function createInvoice(_: CreateInvoiceState, formData: FormData) {
   redirect('/dashboard/invoices');
 }
 
-export async function updateInvoice(id: string, formData: FormData) {
-  const { customerId, amount, status } = UpdateInvoice.parse({
+export async function updateInvoice(
+  id: string,
+  _: IInvoiceState,
+  formData: FormData,
+) {
+  const validationResponse = UpdateInvoice.safeParse({
     customerId: formData.get('customerId'),
     amount: formData.get('amount'),
     status: formData.get('status'),
   });
 
+  if (!validationResponse?.success) {
+    return {
+      message: 'Invalid fields',
+      errors: validationResponse?.error?.flatten()?.fieldErrors,
+      formFields: {
+        customerId: formData.get('customerId')?.toString() || '',
+        amount: Number(formData.get('amount')?.toString()) || undefined,
+        status: (formData.get('status')?.toString() || undefined) as z.infer<
+          typeof CreateInvoice
+        >['status'],
+      },
+    };
+  }
+
+  const { amount, customerId, status } = validationResponse.data;
   const amountInCents = amount * 100;
 
   try {
