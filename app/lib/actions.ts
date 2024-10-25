@@ -7,9 +7,13 @@ import { revalidatePath } from 'next/cache';
 
 const FormSchema = z.object({
   id: z.string(),
-  customerId: z.string(),
-  amount: z.coerce.number(),
-  status: z.enum(['pending', 'paid']),
+  customerId: z.string({
+    invalid_type_error: 'Customer ID must be a string.',
+  }),
+  amount: z.coerce.number().gt(0, 'Amount must be greater than 0.'),
+  status: z.enum(['pending', 'paid'], {
+    invalid_type_error: 'Status must be either "pending" or "paid".',
+  }),
   date: z.string(),
 });
 
@@ -17,13 +21,26 @@ const CreateInvoice = FormSchema.omit({ id: true, date: true });
 
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
 
-export async function createInvoice(formData: FormData) {
-  const { customerId, amount, status } = CreateInvoice.parse({
+export interface CreateInvoiceState {
+  errors?: Partial<Record<'customerId' | 'amount' | 'status', string[]>>;
+  message?: string | null;
+}
+
+export async function createInvoice(_: CreateInvoiceState, formData: FormData) {
+  const formDataValidataion = CreateInvoice.safeParse({
     customerId: formData.get('customerId'),
     amount: formData.get('amount'),
     status: formData.get('status'),
   });
 
+  if (!formDataValidataion.success) {
+    return {
+      message: 'Invalid Form Data',
+      errors: formDataValidataion.error.flatten().fieldErrors,
+    };
+  }
+
+  const { customerId, amount, status } = formDataValidataion.data;
   const amountInCents = amount * 100;
   const date = new Date().toISOString().split('T')[0];
 
